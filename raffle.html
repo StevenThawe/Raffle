@@ -3,344 +3,552 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Raffle Draw</title>
+<title>Raffle Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
-   RAFFLE DRAW PAGE
-   Reached by a signed link:  ?token=<guid>
-   Mirrors the Operion supplier-portal token pattern:
-     token in URL -> Fetch flow -> render -> Draw flow (server picks)
-   The 5s animation is theatre; the winner comes from the server.
-   Brand: Apicci (Violet #6114FD / Ink Navy / Lavender)
+   RAFFLE CONSOLE
+   Enterprise-console aesthetic: Fluent / Linear / Stripe restraint.
+   Reached by signed link ?token=<guid>
+   Flow 2 (fetch) -> render roster; Flow 3 (draw) -> server winner.
+   Multi-winner aware: reads `remaining`, locks only when 0.
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+
 :root{
-  --violet:#6114FD; --violet-dk:#4A0FC4; --ink:#070730;
-  --lavender:#AF82FA; --lav-wash:#F3EEFF; --paper:#FBFAFF; --card:#FFFFFF;
-  --line:#E8E2F5; --muted:#6A6A85; --gold:#E8A317; --gold-lt:#F5C542;
-  --ok:#1B9E6B; --warn:#C7511F; --warn-wash:#FBEBE3;
-  --radius:18px; --radius-sm:11px;
-  --shadow:0 1px 2px rgba(7,7,48,.04),0 10px 34px rgba(7,7,48,.09);
-  --font:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  /* canvas */
+  --bg:#F7F8FA;
+  --surface:#FFFFFF;
+  --surface-2:#FBFBFD;
+  /* ink */
+  --ink:#0B0D12;
+  --ink-2:#3A3F4B;
+  --ink-3:#6B7280;
+  --ink-4:#9AA0AB;
+  /* lines */
+  --line:#E7E9EE;
+  --line-2:#EEF0F4;
+  /* brand — desaturated Apicci violet, used sparingly */
+  --brand:#5B4CE0;
+  --brand-ink:#4A3DC4;
+  --brand-wash:#F1F0FD;
+  /* winner — reserved gold, appears only at the reveal */
+  --gold:#B8860B;
+  --gold-line:#E8D9A8;
+  --gold-wash:#FBF7EC;
+  /* status */
+  --green:#0E9F6E;
+  --green-wash:#E8F6F0;
+  --red:#D0322E;
+  --red-wash:#FCECEB;
+  /* elevation (Fluent-style layered shadows) */
+  --sh-1:0 1px 1px rgba(11,13,18,.04), 0 1px 2px rgba(11,13,18,.05);
+  --sh-2:0 2px 4px rgba(11,13,18,.04), 0 6px 16px rgba(11,13,18,.06);
+  --sh-3:0 8px 24px rgba(11,13,18,.08), 0 2px 6px rgba(11,13,18,.05);
+  --r:10px; --r-sm:7px; --r-lg:14px;
+  --fs:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 }
+
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font);background:var(--paper);color:var(--ink);
-  line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
-.shell{width:100%;max-width:1120px;margin:0 auto;padding:clamp(16px,3vw,44px)}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--fs);background:var(--bg);color:var(--ink);
+  font-size:14px;line-height:1.5;letter-spacing:-0.006em;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  min-height:100vh;
+}
+.tnum{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 
-.top{display:flex;align-items:center;gap:14px;margin-bottom:26px}
-.mark{width:42px;height:42px;border-radius:12px;
-  background:linear-gradient(135deg,var(--violet),var(--lavender));
-  display:grid;place-items:center;color:#fff;font-weight:800;font-size:19px;
-  box-shadow:0 6px 18px rgba(97,20,253,.35)}
-.top h1{font-size:20px;font-weight:700;letter-spacing:-.02em}
-.top .sub{font-size:12.5px;color:var(--muted);font-weight:500}
+/* ---------- app chrome ---------- */
+.appbar{
+  height:52px;background:var(--surface);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:20;
+}
+.brand{display:flex;align-items:center;gap:9px}
+.glyph{
+  width:26px;height:26px;border-radius:7px;background:var(--brand);
+  display:grid;place-items:center;box-shadow:var(--sh-1);
+}
+.glyph svg{width:15px;height:15px;display:block}
+.brand .name{font-weight:600;font-size:13.5px;letter-spacing:-0.01em}
+.brand .div{width:1px;height:18px;background:var(--line);margin:0 3px}
+.brand .ctx{font-size:13px;color:var(--ink-3);font-weight:450}
+.appbar .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.env-pill{
+  font-size:11px;font-weight:500;color:var(--ink-3);
+  border:1px solid var(--line);border-radius:99px;padding:3px 9px;
+  display:flex;align-items:center;gap:6px;
+}
+.env-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
 
-.grid{display:grid;grid-template-columns:320px 1fr;gap:22px;align-items:start}
-@media(max-width:820px){.grid{grid-template-columns:1fr}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-  box-shadow:var(--shadow)}
+/* ---------- workspace ---------- */
+.wrap{max-width:1160px;margin:0 auto;padding:28px 20px 60px}
+.pagehead{margin-bottom:22px}
+.crumb{font-size:12px;color:var(--ink-4);font-weight:500;margin-bottom:9px;display:flex;gap:7px;align-items:center}
+.crumb svg{width:12px;height:12px;opacity:.6}
+.pagehead h1{font-size:22px;font-weight:650;letter-spacing:-0.02em;line-height:1.2}
+.pagehead .meta{margin-top:6px;font-size:13px;color:var(--ink-3);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.pagehead .meta .sep{width:3px;height:3px;border-radius:50%;background:var(--ink-4)}
 
-.side{padding:20px}
-.side .head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
-.side .head h2{font-size:14px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--violet)}
-.side .head .cnt{font-size:13px;font-weight:700;color:var(--ink);
-  background:var(--lav-wash);padding:2px 10px;border-radius:99px}
-.plist{list-style:none;max-height:60vh;overflow-y:auto;margin:-4px}
-.plist li{display:flex;align-items:center;gap:11px;padding:9px 8px;border-radius:10px;
-  transition:background .12s}
-.plist li.flash{background:var(--lav-wash)}
-.plist li.win{background:linear-gradient(90deg,var(--lav-wash),#fff);
-  box-shadow:inset 3px 0 0 var(--gold)}
-.av{width:30px;height:30px;border-radius:9px;flex-shrink:0;display:grid;place-items:center;
-  font-size:12px;font-weight:700;color:#fff;background:var(--lavender)}
-.pn{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pe{font-size:11.5px;color:var(--muted)}
+.cols{display:grid;grid-template-columns:minmax(0,340px) 1fr;gap:18px;align-items:start}
+@media(max-width:860px){.cols{grid-template-columns:1fr}}
 
-.stage{padding:clamp(24px,4vw,44px);min-height:420px;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;text-align:center}
-.eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--violet);margin-bottom:10px}
-.camp{font-size:clamp(22px,3.4vw,30px);font-weight:800;letter-spacing:-.03em;margin-bottom:6px}
-.tag{color:var(--muted);font-size:14px;margin-bottom:30px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-1)}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;border-bottom:1px solid var(--line-2);
+}
+.panel-head h2{font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:var(--ink-3)}
+.badge{
+  font-size:12px;font-weight:600;color:var(--ink-2);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:6px;padding:1px 8px;
+}
 
-.reel{width:100%;max-width:440px;height:110px;border-radius:var(--radius);
-  border:1.5px solid var(--line);background:var(--paper);display:grid;place-items:center;
-  overflow:hidden;position:relative;margin-bottom:26px}
-.reel .roll{font-size:26px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
-.reel.spinning{border-color:var(--lavender);box-shadow:0 0 0 5px var(--lav-wash)}
-.reel.spinning .roll{color:var(--violet)}
-.reel.reveal{border-color:var(--gold);
-  background:linear-gradient(135deg,#FFFDF6,#FFF7E6);
-  box-shadow:0 0 0 5px rgba(232,163,23,.18),0 14px 40px rgba(232,163,23,.22)}
-.reel.reveal .roll{color:#8a5a00}
-.crown{font-size:22px;margin-bottom:4px;opacity:0;transition:opacity .4s}
-.reel.reveal .crown{opacity:1}
-.we{font-size:13px;color:var(--muted);margin-top:2px;opacity:0;transition:opacity .4s .1s}
-.reel.reveal .we{opacity:1}
+/* ---------- roster (left) ---------- */
+.roster{max-height:min(62vh,560px);overflow-y:auto;padding:6px}
+.roster::-webkit-scrollbar{width:10px}
+.roster::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:3px solid var(--surface)}
+.row{
+  display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:8px;
+  transition:background .12s ease;
+}
+.row:hover{background:var(--surface-2)}
+.row.cand{background:var(--brand-wash)}
+.row.won{background:var(--gold-wash);box-shadow:inset 2px 0 0 var(--gold)}
+.avatar{
+  width:30px;height:30px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;
+  font-size:11.5px;font-weight:600;color:var(--ink-2);
+  background:var(--surface-2);border:1px solid var(--line);
+}
+.row.won .avatar{background:var(--gold-wash);border-color:var(--gold-line);color:var(--gold)}
+.row .who{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.row .nm{font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .em{font-size:12px;color:var(--ink-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .tick{
+  width:18px;height:18px;flex-shrink:0;display:none;
+  border-radius:50%;background:var(--gold);align-items:center;justify-content:center;
+}
+.row.won .tick{display:flex}
+.row .tick svg{width:11px;height:11px;color:#fff}
 
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;
-  padding:15px 40px;border-radius:var(--radius-sm);font-family:inherit;font-size:16px;
-  font-weight:700;border:none;cursor:pointer;transition:transform .12s,box-shadow .2s,background .2s}
-.btn:active{transform:translateY(1px)}
-.btn-draw{background:var(--violet);color:#fff;box-shadow:0 8px 22px rgba(97,20,253,.32)}
-.btn-draw:hover{background:var(--violet-dk)}
-.btn-draw:disabled{background:#C9BEEA;box-shadow:none;cursor:not-allowed}
+/* ---------- draw console (right) ---------- */
+.console{padding:0}
+.console-body{padding:34px 30px 30px;display:flex;flex-direction:column;align-items:center;text-align:center}
 
-.banner{display:flex;gap:11px;align-items:flex-start;padding:14px 16px;border-radius:var(--radius-sm);
-  font-size:13.5px;font-weight:500;max-width:460px}
-.banner.lock{background:#FFF7E6;color:#8a5a00;border:1px solid #F0DCA6}
-.banner.err{background:var(--warn-wash);color:var(--warn);border:1px solid #F0C9B6}
-.center-msg{text-align:center;padding:60px 20px}
-.spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
-  border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
-@keyframes sp{to{transform:rotate(360deg)}}
-.skel{width:190px;height:16px;border-radius:6px;background:linear-gradient(90deg,var(--line),var(--lav-wash),var(--line));
-  background-size:200% 100%;animation:sh 1.2s infinite;margin:10px auto}
-@keyframes sh{to{background-position:-200% 0}}
+.statusline{
+  display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:500;
+  color:var(--ink-3);border:1px solid var(--line);border-radius:99px;padding:4px 11px;margin-bottom:26px;
+}
+.statusline .dot{width:6px;height:6px;border-radius:50%;background:var(--brand)}
+.statusline.ready .dot{background:var(--green)}
+.statusline.done .dot{background:var(--gold)}
 
-.conf{position:fixed;top:-12px;width:9px;height:14px;opacity:.9;z-index:60;
-  animation:fall linear forwards;pointer-events:none}
-@keyframes fall{to{transform:translateY(104vh) rotate(540deg);opacity:0}}
+/* the display — where names settle */
+.display{
+  width:100%;max-width:420px;border:1px solid var(--line);border-radius:var(--r-lg);
+  background:linear-gradient(180deg,var(--surface),var(--surface-2));
+  padding:34px 24px;margin-bottom:22px;position:relative;overflow:hidden;
+  box-shadow:var(--sh-1);transition:border-color .3s ease, box-shadow .4s ease;
+}
+.display .label{
+  font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;
+  color:var(--ink-4);margin-bottom:14px;transition:color .3s;
+}
+.display .name{
+  font-size:28px;font-weight:650;letter-spacing:-0.025em;color:var(--ink);
+  line-height:1.15;min-height:34px;transition:color .3s;
+}
+.display .name.rolling{color:var(--brand)}
+.display .sub{font-size:13px;color:var(--ink-4);margin-top:7px;min-height:19px;opacity:0;transition:opacity .35s}
+.display.settled{border-color:var(--gold-line);box-shadow:0 0 0 3px var(--gold-wash),var(--sh-2)}
+.display.settled .label{color:var(--gold)}
+.display.settled .name{color:var(--ink)}
+.display.settled .sub{opacity:1}
+.display .seal{
+  position:absolute;top:12px;right:14px;opacity:0;transform:scale(.8);
+  transition:opacity .4s ease .15s, transform .4s cubic-bezier(.2,.9,.3,1) .15s;
+}
+.display.settled .seal{opacity:1;transform:scale(1)}
+.display .seal svg{width:18px;height:18px;color:var(--gold)}
+
+/* controls */
+.controls{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:420px}
+.btn{
+  appearance:none;font-family:inherit;font-size:14px;font-weight:550;letter-spacing:-0.01em;
+  border-radius:var(--r);cursor:pointer;border:1px solid transparent;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  transition:background .15s, box-shadow .15s, transform .06s, border-color .15s;
+}
+.btn:active{transform:translateY(.5px)}
+.btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.btn-primary{
+  background:var(--brand);color:#fff;padding:12px 26px;width:100%;
+  box-shadow:var(--sh-1);
+}
+.btn-primary:hover{background:var(--brand-ink);box-shadow:var(--sh-2)}
+.btn-primary:disabled{background:#C7C4EE;cursor:not-allowed;box-shadow:none}
+.btn svg{width:16px;height:16px}
+
+.remain{font-size:12.5px;color:var(--ink-3);font-weight:450}
+.remain b{color:var(--ink);font-weight:600}
+
+/* notices */
+.notice{
+  width:100%;max-width:420px;margin-top:6px;display:flex;gap:10px;align-items:flex-start;
+  padding:11px 13px;border-radius:var(--r);font-size:12.5px;line-height:1.45;text-align:left;
+}
+.notice svg{width:15px;height:15px;flex-shrink:0;margin-top:1px}
+.notice.info{background:var(--gold-wash);border:1px solid var(--gold-line);color:#7a5c08}
+.notice.err{background:var(--red-wash);border:1px solid #F3C9C7;color:#9e2320}
+
+/* ---------- loading / error gate ---------- */
+.gate{max-width:420px;margin:80px auto;text-align:center}
+.gate .spinner{width:22px;height:22px;margin:0 auto 16px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite}
+.gate .msg{font-size:14px;color:var(--ink-3)}
+.gate.error .icon{width:40px;height:40px;margin:0 auto 14px;border-radius:11px;background:var(--red-wash);display:grid;place-items:center}
+.gate.error .icon svg{width:20px;height:20px;color:var(--red)}
+.gate.error h3{font-size:16px;font-weight:600;margin-bottom:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.btn-spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+
+.skel{background:linear-gradient(90deg,var(--line-2),var(--surface-2),var(--line-2));background-size:200% 100%;animation:shim 1.3s infinite;border-radius:6px}
+@keyframes shim{to{background-position:-200% 0}}
+
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;transition-duration:.05ms !important}
+}
 </style>
 </head>
 <body>
-<div class="shell">
-  <div class="top">
-    <div class="mark">R</div>
-    <div>
-      <h1>Raffle Draw</h1>
-      <div class="sub">One click, one winner &mdash; drawn and recorded</div>
+
+<header class="appbar">
+  <div class="brand">
+    <span class="glyph">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 7l8-4 8 4-8 4-8-4z" fill="#fff" opacity=".95"/><path d="M4 12l8 4 8-4M4 17l8 4 8-4" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/></svg>
+    </span>
+    <span class="name">Raffle Console</span>
+    <span class="div"></span>
+    <span class="ctx">Apicci</span>
+  </div>
+  <div class="right">
+    <span class="env-pill"><span class="dot"></span>Live draw</span>
+  </div>
+</header>
+
+<!-- gate: loading / error -->
+<div id="gate" class="gate">
+  <div class="spinner"></div>
+  <div class="msg">Loading raffle…</div>
+</div>
+
+<!-- main -->
+<main id="app" class="wrap" style="display:none">
+  <div class="pagehead">
+    <div class="crumb">
+      Campaigns
+      <svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Draw
+    </div>
+    <h1 id="campTitle">Campaign</h1>
+    <div class="meta">
+      <span id="metaCount" class="tnum">— participants</span>
+      <span class="sep"></span>
+      <span id="metaStatus">Ready to draw</span>
     </div>
   </div>
 
-  <div id="gate" class="card center-msg">
-    <div class="skel"></div><div class="skel" style="width:130px"></div>
-    <p style="color:var(--muted);font-size:13px;margin-top:14px">Loading raffle&hellip;</p>
-  </div>
-
-  <div id="main" class="grid" style="display:none">
-    <aside class="card side">
-      <div class="head">
+  <div class="cols">
+    <!-- roster -->
+    <section class="panel">
+      <div class="panel-head">
         <h2>Participants</h2>
-        <span class="cnt" id="pcount">0</span>
+        <span class="badge tnum" id="rosterCount">0</span>
       </div>
-      <ul class="plist" id="plist"></ul>
-    </aside>
+      <div class="roster" id="roster"></div>
+    </section>
 
-    <section class="card stage">
-      <div class="eyebrow">Live draw</div>
-      <div class="camp" id="campName">&mdash;</div>
-      <div class="tag" id="tag">Everyone on the left is in the running.</div>
+    <!-- console -->
+    <section class="panel console">
+      <div class="console-body">
+        <span class="statusline ready" id="statusline">
+          <span class="dot"></span><span id="statusText">Ready to draw</span>
+        </span>
 
-      <div class="reel" id="reel">
-        <div>
-          <div class="crown">&#128081;</div>
-          <div class="roll" id="roll">Ready</div>
-          <div class="we" id="we"></div>
+        <div class="display" id="display">
+          <span class="seal">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20l1.1-6.5L2.6 8.8l6.5-.9L12 2z" fill="currentColor"/></svg>
+          </span>
+          <div class="label" id="displayLabel">Awaiting draw</div>
+          <div class="name" id="displayName">—</div>
+          <div class="sub" id="displaySub"></div>
         </div>
-      </div>
 
-      <button class="btn btn-draw" id="drawBtn" data-act="draw">&#127919; Draw a winner</button>
+        <div class="controls">
+          <button class="btn btn-primary" id="drawBtn" data-act="draw">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Draw winner
+          </button>
+          <div class="remain" id="remain" style="display:none"></div>
+        </div>
 
-      <div id="lockBanner" class="banner lock" style="display:none;margin-top:8px">
-        <span>&#128274;</span>
-        <span>This raffle has already been drawn. The winner is shown above and locked in.</span>
+        <div class="notice info" id="lockNotice" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 10V8a6 6 0 1112 0v2M5 10h14v10H5V10z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>All winners for this campaign have been drawn. Results are final.</span>
+        </div>
+        <div class="notice err" id="errNotice" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span id="errText"></span>
+        </div>
       </div>
     </section>
   </div>
-</div>
+</main>
 
 <script>
 (function(){
   "use strict";
 
   /* ============================================================
-     CONFIG — paste the two Power Automate HTTP URLs.
-     Same as every Operion portal page's PASTE_YOUR_FLOW_URL_HERE.
+     CONFIG — Power Automate HTTP URLs (unchanged from working flows)
      ============================================================ */
   var CONFIG = {
-    FETCH_URL: "https://b2b6fd73de3fe8a39420ca82b47685.00.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/13/workflows/d1b3db7caff44c049fe56d285884b2b2/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1mWlpGU3PI4s8pR1Z04sjjm6CwIIWP5FLfhOyQ0u2kw",  // Flow 2 (GET, token appended with &)
-    DRAW_URL:  "https://b2b6fd73de3fe8a39420ca82b47685.00.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/03/workflows/ed0b9249d6794df5bf6707d5a7de2329/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=soAfDQ8jYbm60AMBMrvwMqXosMEd6uf4Lf5ERozYxcA"          // Flow 3 (POST, text/plain to skip CORS preflight)
+    FETCH_URL: "https://b2b6fd73de3fe8a39420ca82b47685.00.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/13/workflows/d1b3db7caff44c049fe56d285884b2b2/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1mWlpGU3PI4s8pR1Z04sjjm6CwIIWP5FLfhOyQ0u2kw",
+    DRAW_URL:  "https://b2b6fd73de3fe8a39420ca82b47685.00.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/03/workflows/ed0b9249d6794df5bf6707d5a7de2329/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=soAfDQ8jYbm60AMBMrvwMqXosMEd6uf4Lf5ERozYxcA"
   };
 
-  var SPIN_MS = 5000;   // 5-second animation
-  var S = { token:"", participants:[], drawn:false };
+  var ROLL_MS = 3400;   // deceleration window for the name reel
+  var S = { token:"", participants:[], drawn:false, remaining:null };
 
   var $ = function(id){ return document.getElementById(id); };
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
   function initials(n){ n=(n||'').trim(); if(!n) return '?';
-    var p=n.split(/\s+/); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
+    var p=n.split(/\s+/); return (p[0][0]+(p.length>1?p[p.length-1][0]:'')).toUpperCase(); }
+  function errText(e){
+    if(e==null) return "The draw couldn't be completed.";
+    if(typeof e==="string") return e;
+    if(typeof e==="object") return e.message || JSON.stringify(e);
+    return String(e);
+  }
 
   S.token = new URLSearchParams(location.search).get('token') || "";
 
+  /* ---------- boot ---------- */
   function boot(){
-    if (!S.token){ fatal("No raffle token in the link."); return; }
+    if(!S.token){ fail("This link is missing its access token.", "Ask the organiser to resend the raffle link."); return; }
     fetch(CONFIG.FETCH_URL + (CONFIG.FETCH_URL.indexOf('?')>-1?'&':'?') + 'token=' + encodeURIComponent(S.token))
       .then(readJson)
       .then(function(d){
-        if (d.error){ fatal(d.error); return; }
+        if(d.error){ fail("Raffle unavailable", errText(d.error)); return; }
         S.participants = d.participants || [];
         S.drawn = !!d.alreadyDrawn;
         render(d);
       })
-      .catch(function(){ fatal("Couldn't load this raffle. Check your connection and try again."); });
+      .catch(function(){ fail("Couldn't reach the raffle service", "Check your connection and reload the page."); });
   }
 
   function render(d){
-    $('campName').textContent = d.campaignName || 'Raffle';
-    $('pcount').textContent = S.participants.length;
-    var list = $('plist'); list.innerHTML = '';
+    $('campTitle').textContent = d.campaignName || 'Campaign';
+    var n = S.participants.length;
+    $('metaCount').textContent = n + (n===1?' participant':' participants');
+    $('rosterCount').textContent = n;
+
+    var host = $('roster'); host.innerHTML = '';
     S.participants.forEach(function(p){
-      var li = document.createElement('li');
-      li.dataset.id = p.id;
-      li.innerHTML = '<span class="av">'+esc(initials(p.name))+'</span>'+
-        '<span style="min-width:0"><div class="pn">'+esc(p.name||'(no name)')+'</div>'+
-        (p.email?'<div class="pe">'+esc(p.email)+'</div>':'')+'</span>';
-      list.appendChild(li);
+      var row = document.createElement('div');
+      row.className = 'row'; row.dataset.id = p.id;
+      row.innerHTML =
+        '<span class="avatar">'+esc(initials(p.name))+'</span>'+
+        '<span class="who"><span class="nm">'+esc(p.name||'Unnamed')+'</span>'+
+          (p.email?'<span class="em">'+esc(p.email)+'</span>':'')+'</span>'+
+        '<span class="tick"><svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+      host.appendChild(row);
     });
 
-    $('gate').style.display = 'none';
-    $('main').style.display = 'grid';
+    $('gate').style.display='none';
+    $('app').style.display='block';
 
-    if (S.drawn && d.winnerName){
-      lockToWinner(d.winnerName, d.winnerEmail, d.winnerId);
-    } else if (S.participants.length === 0){
+    if(S.drawn){
+      // reloaded after completion — reflect locked state
+      setStatus('done','Drawing closed');
+      $('metaStatus').textContent = 'Drawing closed';
+      $('drawBtn').style.display='none';
+      $('lockNotice').style.display='flex';
+      // mark any already-flagged winners from the roster
+      (d.winners||[]).forEach(function(w){ markWon(w.id); });
+      $('displayLabel').textContent = 'Result';
+      var last = (d.winners||[])[ (d.winners||[]).length-1 ];
+      if(last){ settleTo(last.name, last.email); }
+    } else if(n===0){
       $('drawBtn').disabled = true;
-      $('tag').textContent = 'No participants have been uploaded yet.';
-      $('roll').textContent = '—';
+      setStatus('ready','No participants');
+      $('displayName').textContent = '—';
+      $('metaStatus').textContent = 'No participants';
     }
   }
 
+  /* ---------- status pill ---------- */
+  function setStatus(kind, text){
+    var el = $('statusline');
+    el.className = 'statusline ' + kind;
+    $('statusText').textContent = text;
+  }
+
+  /* ---------- the draw ---------- */
   function draw(btn){
-    if (S.participants.length === 0) return;
+    if(S.participants.length===0) return;
+    $('errNotice').style.display='none';
     btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span> Drawing';
+    btn.innerHTML = '<span class="btn-spin"></span> Drawing…';
+    setStatus('', 'Selecting…');
 
     var started = Date.now();
-    var serverResult = null, serverError = null;
+    var result = null, error = null;
 
     fetch(CONFIG.DRAW_URL, {
       method:'POST',
-      headers:{'Content-Type':'text/plain'},  // text/plain = "simple request", skips CORS preflight
+      headers:{'Content-Type':'text/plain'},
       body: JSON.stringify({ token:S.token })
     })
     .then(readJson)
     .then(function(d){
-      if (d.error && d.winnerName){
-        serverResult = {name:d.winnerName, email:d.winnerEmail, id:d.winnerId, locked:true};
-      } else if (d.error){ serverError = errText(d.error); }
-      else { serverResult = {name:d.winnerName, email:d.winnerEmail, id:d.winnerId}; }
+      if(d.error && d.winnerName){ result = {name:d.winnerName, email:d.winnerEmail, id:d.winnerId, locked:true}; }
+      else if(d.error){ error = errText(d.error); }
+      else {
+        result = {name:d.winnerName, email:d.winnerEmail, id:d.winnerId};
+        if(typeof d.remaining !== 'undefined') S.remaining = d.remaining;
+      }
     })
-    .catch(function(){ serverError = "The draw couldn't be completed. Try again."; });
+    .catch(function(){ error = "The draw service didn't respond. Please try again."; });
 
-    var reel = $('reel'), roll = $('roll');
-    reel.classList.add('spinning');
-    var names = S.participants.map(function(p){ return p.name || '(no name)'; });
-    var tick = setInterval(function(){
-      roll.textContent = names[Math.floor(Math.random()*names.length)];
-      flashRandom();
-    }, 90);
+    // reel: decelerating name cycle
+    var display = $('display'), nameEl = $('displayName');
+    display.classList.remove('settled');
+    $('displayLabel').textContent = 'Selecting';
+    nameEl.classList.add('rolling');
+    var names = S.participants.map(function(p){ return p.name || 'Unnamed'; });
 
-    setTimeout(function(){
-      clearInterval(tick);
-      var wait = Math.max(0, SPIN_MS - (Date.now()-started));
-      setTimeout(function(){
-        reel.classList.remove('spinning');
-        if (serverError){ drawError(serverError, btn); return; }
-        if (serverResult){ revealWinner(serverResult); }
+    var delay = 55;
+    function step(){
+      var elapsed = Date.now() - started;
+      nameEl.textContent = names[Math.floor(Math.random()*names.length)];
+      flashCandidate();
+      if(elapsed < ROLL_MS){
+        // ease-out: delay grows as we approach the end
+        var t = elapsed / ROLL_MS;
+        delay = 55 + Math.pow(t, 3) * 240;
+        setTimeout(step, delay);
+      } else {
+        finish();
+      }
+    }
+    function finish(){
+      var settle = function(){
+        nameEl.classList.remove('rolling');
+        clearCandidates();
+        if(error){ drawError(error, btn); return; }
+        if(result){ reveal(result); }
         else {
+          // server slower than the reel — hold, then resolve
           var poll = setInterval(function(){
-            if (serverResult){ clearInterval(poll); revealWinner(serverResult); }
-            else if (serverError){ clearInterval(poll); drawError(serverError, btn); }
-          }, 150);
+            if(result){ clearInterval(poll); reveal(result); }
+            else if(error){ clearInterval(poll); drawError(error, btn); }
+          }, 120);
         }
-      }, wait);
-    }, SPIN_MS - 200);
+      };
+      var wait = Math.max(0, ROLL_MS - (Date.now()-started));
+      setTimeout(settle, wait);
+    }
+    setTimeout(step, delay);
   }
 
-  function flashRandom(){
-    var lis = $('plist').children; if (!lis.length) return;
-    for (var i=0;i<lis.length;i++) lis[i].classList.remove('flash');
-    lis[Math.floor(Math.random()*lis.length)].classList.add('flash');
-  }
+  function reveal(w){
+    settleTo(w.name, w.email);
+    markWon(w.id);
+    var btn = $('drawBtn');
 
-  function revealWinner(w){
-    $('reel').classList.add('reveal');
-    $('roll').textContent = w.name || '(no name)';
-    $('we').textContent = w.email || '';
-    highlightWinner(w.id);
-    confetti();
-    $('drawBtn').style.display='none';
-    $('lockBanner').style.display='flex';
-  }
-
-  function lockToWinner(name, email, id){
-    $('reel').classList.add('reveal');
-    $('roll').textContent = name;
-    $('we').textContent = email || '';
-    highlightWinner(id);
-    $('tag').textContent = 'Winner already drawn.';
-    $('drawBtn').style.display = 'none';
-    $('lockBanner').style.display = 'flex';
-  }
-
-  function highlightWinner(id){
-    var lis = $('plist').children;
-    for (var i=0;i<lis.length;i++){
-      lis[i].classList.remove('flash');
-      if (id && lis[i].dataset.id === id){
-        lis[i].classList.add('win');
-        lis[i].scrollIntoView({block:'nearest',behavior:'smooth'});
+    var done = w.locked || S.remaining===0 || S.remaining===null && false;
+    // decide whether more draws remain
+    if(w.locked || S.remaining === 0){
+      btn.style.display='none';
+      $('remain').style.display='none';
+      $('lockNotice').style.display='flex';
+      setStatus('done','Drawing closed');
+      $('metaStatus').textContent='Drawing closed';
+    } else {
+      btn.disabled=false;
+      btn.innerHTML = drawBtnLabel();
+      setStatus('ready','Ready for next draw');
+      if(S.remaining!==null){
+        $('remain').style.display='block';
+        $('remain').innerHTML = '<b>'+S.remaining+'</b> '+(S.remaining===1?'winner remaining':'winners remaining');
       }
     }
   }
 
-  function drawError(msg, btn){
-    $('roll').textContent = 'Try again';
-    var lb = $('lockBanner');
-    lb.className = 'banner err'; lb.style.display='flex';
-    lb.innerHTML = '<span>&#9888;</span><span>'+esc(msg)+'</span>';
-    btn.disabled = false;
-    btn.innerHTML = '&#127919; Draw a winner';
+  function drawBtnLabel(){
+    return '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Draw next winner';
   }
 
-  function confetti(){
-    var colors=['#6114FD','#AF82FA','#E8A317','#F5C542','#1B9E6B'];
-    for (var i=0;i<80;i++){
-      var c=document.createElement('div'); c.className='conf';
-      c.style.left=Math.random()*100+'vw';
-      c.style.background=colors[i%colors.length];
-      c.style.animationDuration=(2+Math.random()*1.6)+'s';
-      c.style.animationDelay=(Math.random()*0.3)+'s';
-      document.body.appendChild(c);
-      setTimeout(function(el){return function(){el.remove();};}(c),4200);
+  function settleTo(name, email){
+    var display=$('display');
+    $('displayLabel').textContent='Winner';
+    $('displayName').textContent = name || 'Unnamed';
+    $('displaySub').textContent = email || '';
+    display.classList.add('settled');
+  }
+
+  function markWon(id){
+    var rows=$('roster').children;
+    for(var i=0;i<rows.length;i++){
+      if(id && rows[i].dataset.id===id){
+        rows[i].classList.remove('cand');
+        rows[i].classList.add('won');
+        rows[i].scrollIntoView({block:'nearest',behavior:'smooth'});
+      }
     }
   }
 
-  function readJson(res){
-    return res.text().then(function(t){
-      try{ return t?JSON.parse(t):{}; }catch(e){ return {error:"Unexpected response."}; }
-    });
+  function flashCandidate(){
+    var rows=$('roster').children; if(!rows.length) return;
+    clearCandidates();
+    var pick = rows[Math.floor(Math.random()*rows.length)];
+    if(!pick.classList.contains('won')) pick.classList.add('cand');
   }
-  function errText(e){
-    if (e == null) return "The draw couldn't be completed.";
-    if (typeof e === "string") return e;
-    if (typeof e === "object") return e.message || JSON.stringify(e);
-    return String(e);
-  }
-  function fatal(msg){
-    $('main').style.display='none';
-    var g=$('gate'); g.style.display='block';
-    g.innerHTML='<div style="font-size:30px;margin-bottom:10px">&#128533;</div>'+
-      '<div style="font-weight:700;font-size:16px;margin-bottom:6px">Raffle unavailable</div>'+
-      '<div style="color:var(--muted);font-size:13.5px">'+esc(msg)+'</div>';
+  function clearCandidates(){
+    var rows=$('roster').children;
+    for(var i=0;i<rows.length;i++) rows[i].classList.remove('cand');
   }
 
-  document.addEventListener('click', function(ev){
-    var t = ev.target.closest('[data-act]'); if(!t) return;
-    if (t.dataset.act === 'draw') draw(t);
+  function drawError(msg, btn){
+    $('errText').textContent = msg;
+    $('errNotice').style.display='flex';
+    $('displayLabel').textContent='Awaiting draw';
+    $('displayName').textContent='—';
+    setStatus('ready','Ready to draw');
+    btn.disabled=false;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Draw winner';
+  }
+
+  /* ---------- utils ---------- */
+  function readJson(res){
+    return res.text().then(function(t){
+      try{ return t?JSON.parse(t):{}; }catch(e){ return {error:"The service returned an unexpected response."}; }
+    });
+  }
+  function fail(title, detail){
+    $('app').style.display='none';
+    var g=$('gate'); g.style.display='block'; g.className='gate error';
+    g.innerHTML =
+      '<div class="icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'+
+      '<h3>'+esc(title)+'</h3><div class="msg">'+esc(detail)+'</div>';
+  }
+
+  document.addEventListener('click', function(e){
+    var t=e.target.closest('[data-act]'); if(!t) return;
+    if(t.dataset.act==='draw') draw(t);
   });
 
   boot();
