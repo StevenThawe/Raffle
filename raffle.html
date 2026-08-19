@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raffle Draw</title>
+<style>
+/* ============================================================
+   RAFFLE DRAW PAGE
+   Reached by a signed link:  ?token=<guid>
+   Mirrors the Operion supplier-portal token pattern:
+     token in URL -> Fetch flow -> render -> Draw flow (server picks)
+   The 5s animation is theatre; the winner comes from the server.
+   Brand: Apicci (Violet #6114FD / Ink Navy / Lavender)
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+:root{
+  --violet:#6114FD; --violet-dk:#4A0FC4; --ink:#070730;
+  --lavender:#AF82FA; --lav-wash:#F3EEFF; --paper:#FBFAFF; --card:#FFFFFF;
+  --line:#E8E2F5; --muted:#6A6A85; --gold:#E8A317; --gold-lt:#F5C542;
+  --ok:#1B9E6B; --warn:#C7511F; --warn-wash:#FBEBE3;
+  --radius:18px; --radius-sm:11px;
+  --shadow:0 1px 2px rgba(7,7,48,.04),0 10px 34px rgba(7,7,48,.09);
+  --font:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--paper);color:var(--ink);
+  line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+.shell{width:100%;max-width:1120px;margin:0 auto;padding:clamp(16px,3vw,44px)}
+
+.top{display:flex;align-items:center;gap:14px;margin-bottom:26px}
+.mark{width:42px;height:42px;border-radius:12px;
+  background:linear-gradient(135deg,var(--violet),var(--lavender));
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:19px;
+  box-shadow:0 6px 18px rgba(97,20,253,.35)}
+.top h1{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.top .sub{font-size:12.5px;color:var(--muted);font-weight:500}
+
+.grid{display:grid;grid-template-columns:320px 1fr;gap:22px;align-items:start}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow)}
+
+.side{padding:20px}
+.side .head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.side .head h2{font-size:14px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--violet)}
+.side .head .cnt{font-size:13px;font-weight:700;color:var(--ink);
+  background:var(--lav-wash);padding:2px 10px;border-radius:99px}
+.plist{list-style:none;max-height:60vh;overflow-y:auto;margin:-4px}
+.plist li{display:flex;align-items:center;gap:11px;padding:9px 8px;border-radius:10px;
+  transition:background .12s}
+.plist li.flash{background:var(--lav-wash)}
+.plist li.win{background:linear-gradient(90deg,var(--lav-wash),#fff);
+  box-shadow:inset 3px 0 0 var(--gold)}
+.av{width:30px;height:30px;border-radius:9px;flex-shrink:0;display:grid;place-items:center;
+  font-size:12px;font-weight:700;color:#fff;background:var(--lavender)}
+.pn{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pe{font-size:11.5px;color:var(--muted)}
+
+.stage{padding:clamp(24px,4vw,44px);min-height:420px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--violet);margin-bottom:10px}
+.camp{font-size:clamp(22px,3.4vw,30px);font-weight:800;letter-spacing:-.03em;margin-bottom:6px}
+.tag{color:var(--muted);font-size:14px;margin-bottom:30px}
+
+.reel{width:100%;max-width:440px;height:110px;border-radius:var(--radius);
+  border:1.5px solid var(--line);background:var(--paper);display:grid;place-items:center;
+  overflow:hidden;position:relative;margin-bottom:26px}
+.reel .roll{font-size:26px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.reel.spinning{border-color:var(--lavender);box-shadow:0 0 0 5px var(--lav-wash)}
+.reel.spinning .roll{color:var(--violet)}
+.reel.reveal{border-color:var(--gold);
+  background:linear-gradient(135deg,#FFFDF6,#FFF7E6);
+  box-shadow:0 0 0 5px rgba(232,163,23,.18),0 14px 40px rgba(232,163,23,.22)}
+.reel.reveal .roll{color:#8a5a00}
+.crown{font-size:22px;margin-bottom:4px;opacity:0;transition:opacity .4s}
+.reel.reveal .crown{opacity:1}
+.we{font-size:13px;color:var(--muted);margin-top:2px;opacity:0;transition:opacity .4s .1s}
+.reel.reveal .we{opacity:1}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  padding:15px 40px;border-radius:var(--radius-sm);font-family:inherit;font-size:16px;
+  font-weight:700;border:none;cursor:pointer;transition:transform .12s,box-shadow .2s,background .2s}
+.btn:active{transform:translateY(1px)}
+.btn-draw{background:var(--violet);color:#fff;box-shadow:0 8px 22px rgba(97,20,253,.32)}
+.btn-draw:hover{background:var(--violet-dk)}
+.btn-draw:disabled{background:#C9BEEA;box-shadow:none;cursor:not-allowed}
+
+.banner{display:flex;gap:11px;align-items:flex-start;padding:14px 16px;border-radius:var(--radius-sm);
+  font-size:13.5px;font-weight:500;max-width:460px}
+.banner.lock{background:#FFF7E6;color:#8a5a00;border:1px solid #F0DCA6}
+.banner.err{background:var(--warn-wash);color:var(--warn);border:1px solid #F0C9B6}
+.center-msg{text-align:center;padding:60px 20px}
+.spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;
+  border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.skel{width:190px;height:16px;border-radius:6px;background:linear-gradient(90deg,var(--line),var(--lav-wash),var(--line));
+  background-size:200% 100%;animation:sh 1.2s infinite;margin:10px auto}
+@keyframes sh{to{background-position:-200% 0}}
+
+.conf{position:fixed;top:-12px;width:9px;height:14px;opacity:.9;z-index:60;
+  animation:fall linear forwards;pointer-events:none}
+@keyframes fall{to{transform:translateY(104vh) rotate(540deg);opacity:0}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="top">
+    <div class="mark">R</div>
+    <div>
+      <h1>Raffle Draw</h1>
+      <div class="sub">One click, one winner &mdash; drawn and recorded</div>
+    </div>
+  </div>
+
+  <div id="gate" class="card center-msg">
+    <div class="skel"></div><div class="skel" style="width:130px"></div>
+    <p style="color:var(--muted);font-size:13px;margin-top:14px">Loading raffle&hellip;</p>
+  </div>
+
+  <div id="main" class="grid" style="display:none">
+    <aside class="card side">
+      <div class="head">
+        <h2>Participants</h2>
+        <span class="cnt" id="pcount">0</span>
+      </div>
+      <ul class="plist" id="plist"></ul>
+    </aside>
+
+    <section class="card stage">
+      <div class="eyebrow">Live draw</div>
+      <div class="camp" id="campName">&mdash;</div>
+      <div class="tag" id="tag">Everyone on the left is in the running.</div>
+
+      <div class="reel" id="reel">
+        <div>
+          <div class="crown">&#128081;</div>
+          <div class="roll" id="roll">Ready</div>
+          <div class="we" id="we"></div>
+        </div>
+      </div>
+
+      <button class="btn btn-draw" id="drawBtn" data-act="draw">&#127919; Draw a winner</button>
+
+      <div id="lockBanner" class="banner lock" style="display:none;margin-top:8px">
+        <span>&#128274;</span>
+        <span>This raffle has already been drawn. The winner is shown above and locked in.</span>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================================================
+     CONFIG — paste the two Power Automate HTTP URLs.
+     Same as every Operion portal page's PASTE_YOUR_FLOW_URL_HERE.
+     ============================================================ */
+  var CONFIG = {
+    FETCH_URL: "PASTE_FETCH_PARTICIPANTS_FLOW_URL_HERE",  // Flow 2 (GET ?token=)
+    DRAW_URL:  "PASTE_DRAW_WINNER_FLOW_URL_HERE"          // Flow 3 (POST {token})
+  };
+
+  var SPIN_MS = 5000;   // 5-second animation
+  var S = { token:"", participants:[], drawn:false };
+
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function initials(n){ n=(n||'').trim(); if(!n) return '?';
+    var p=n.split(/\s+/); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
+
+  S.token = new URLSearchParams(location.search).get('token') || "";
+
+  function boot(){
+    if (!S.token){ fatal("No raffle token in the link."); return; }
+    fetch(CONFIG.FETCH_URL + (CONFIG.FETCH_URL.indexOf('?')>-1?'&':'?') + 'token=' + encodeURIComponent(S.token))
+      .then(readJson)
+      .then(function(d){
+        if (d.error){ fatal(d.error); return; }
+        S.participants = d.participants || [];
+        S.drawn = !!d.alreadyDrawn;
+        render(d);
+      })
+      .catch(function(){ fatal("Couldn't load this raffle. Check your connection and try again."); });
+  }
+
+  function render(d){
+    $('campName').textContent = d.campaignName || 'Raffle';
+    $('pcount').textContent = S.participants.length;
+    var list = $('plist'); list.innerHTML = '';
+    S.participants.forEach(function(p){
+      var li = document.createElement('li');
+      li.dataset.id = p.id;
+      li.innerHTML = '<span class="av">'+esc(initials(p.name))+'</span>'+
+        '<span style="min-width:0"><div class="pn">'+esc(p.name||'(no name)')+'</div>'+
+        (p.email?'<div class="pe">'+esc(p.email)+'</div>':'')+'</span>';
+      list.appendChild(li);
+    });
+
+    $('gate').style.display = 'none';
+    $('main').style.display = 'grid';
+
+    if (S.drawn && d.winnerName){
+      lockToWinner(d.winnerName, d.winnerEmail, d.winnerId);
+    } else if (S.participants.length === 0){
+      $('drawBtn').disabled = true;
+      $('tag').textContent = 'No participants have been uploaded yet.';
+      $('roll').textContent = '—';
+    }
+  }
+
+  function draw(btn){
+    if (S.participants.length === 0) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span> Drawing';
+
+    var started = Date.now();
+    var serverResult = null, serverError = null;
+
+    fetch(CONFIG.DRAW_URL, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token:S.token })
+    })
+    .then(readJson)
+    .then(function(d){
+      if (d.error && d.winnerName){
+        serverResult = {name:d.winnerName, email:d.winnerEmail, id:d.winnerId, locked:true};
+      } else if (d.error){ serverError = d.error; }
+      else { serverResult = {name:d.winnerName, email:d.winnerEmail, id:d.winnerId}; }
+    })
+    .catch(function(){ serverError = "The draw couldn't be completed. Try again."; });
+
+    var reel = $('reel'), roll = $('roll');
+    reel.classList.add('spinning');
+    var names = S.participants.map(function(p){ return p.name || '(no name)'; });
+    var tick = setInterval(function(){
+      roll.textContent = names[Math.floor(Math.random()*names.length)];
+      flashRandom();
+    }, 90);
+
+    setTimeout(function(){
+      clearInterval(tick);
+      var wait = Math.max(0, SPIN_MS - (Date.now()-started));
+      setTimeout(function(){
+        reel.classList.remove('spinning');
+        if (serverError){ drawError(serverError, btn); return; }
+        if (serverResult){ revealWinner(serverResult); }
+        else {
+          var poll = setInterval(function(){
+            if (serverResult){ clearInterval(poll); revealWinner(serverResult); }
+            else if (serverError){ clearInterval(poll); drawError(serverError, btn); }
+          }, 150);
+        }
+      }, wait);
+    }, SPIN_MS - 200);
+  }
+
+  function flashRandom(){
+    var lis = $('plist').children; if (!lis.length) return;
+    for (var i=0;i<lis.length;i++) lis[i].classList.remove('flash');
+    lis[Math.floor(Math.random()*lis.length)].classList.add('flash');
+  }
+
+  function revealWinner(w){
+    $('reel').classList.add('reveal');
+    $('roll').textContent = w.name || '(no name)';
+    $('we').textContent = w.email || '';
+    highlightWinner(w.id);
+    confetti();
+    $('drawBtn').style.display='none';
+    $('lockBanner').style.display='flex';
+  }
+
+  function lockToWinner(name, email, id){
+    $('reel').classList.add('reveal');
+    $('roll').textContent = name;
+    $('we').textContent = email || '';
+    highlightWinner(id);
+    $('tag').textContent = 'Winner already drawn.';
+    $('drawBtn').style.display = 'none';
+    $('lockBanner').style.display = 'flex';
+  }
+
+  function highlightWinner(id){
+    var lis = $('plist').children;
+    for (var i=0;i<lis.length;i++){
+      lis[i].classList.remove('flash');
+      if (id && lis[i].dataset.id === id){
+        lis[i].classList.add('win');
+        lis[i].scrollIntoView({block:'nearest',behavior:'smooth'});
+      }
+    }
+  }
+
+  function drawError(msg, btn){
+    $('roll').textContent = 'Try again';
+    var lb = $('lockBanner');
+    lb.className = 'banner err'; lb.style.display='flex';
+    lb.innerHTML = '<span>&#9888;</span><span>'+esc(msg)+'</span>';
+    btn.disabled = false;
+    btn.innerHTML = '&#127919; Draw a winner';
+  }
+
+  function confetti(){
+    var colors=['#6114FD','#AF82FA','#E8A317','#F5C542','#1B9E6B'];
+    for (var i=0;i<80;i++){
+      var c=document.createElement('div'); c.className='conf';
+      c.style.left=Math.random()*100+'vw';
+      c.style.background=colors[i%colors.length];
+      c.style.animationDuration=(2+Math.random()*1.6)+'s';
+      c.style.animationDelay=(Math.random()*0.3)+'s';
+      document.body.appendChild(c);
+      setTimeout(function(el){return function(){el.remove();};}(c),4200);
+    }
+  }
+
+  function readJson(res){
+    return res.text().then(function(t){
+      try{ return t?JSON.parse(t):{}; }catch(e){ return {error:"Unexpected response."}; }
+    });
+  }
+  function fatal(msg){
+    $('main').style.display='none';
+    var g=$('gate'); g.style.display='block';
+    g.innerHTML='<div style="font-size:30px;margin-bottom:10px">&#128533;</div>'+
+      '<div style="font-weight:700;font-size:16px;margin-bottom:6px">Raffle unavailable</div>'+
+      '<div style="color:var(--muted);font-size:13.5px">'+esc(msg)+'</div>';
+  }
+
+  document.addEventListener('click', function(ev){
+    var t = ev.target.closest('[data-act]'); if(!t) return;
+    if (t.dataset.act === 'draw') draw(t);
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
