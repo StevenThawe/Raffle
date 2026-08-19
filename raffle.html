@@ -230,7 +230,7 @@ body{font-family:var(--font);background:var(--paper);color:var(--ink);
     .then(function(d){
       if (d.error && d.winnerName){
         serverResult = {name:d.winnerName, email:d.winnerEmail, id:d.winnerId, locked:true};
-      } else if (d.error){ serverError = d.error; }
+      } else if (d.error){ serverError = errText(d.error); }
       else { serverResult = {name:d.winnerName, email:d.winnerEmail, id:d.winnerId}; }
     })
     .catch(function(){ serverError = "The draw couldn't be completed. Try again."; });
@@ -323,6 +323,12 @@ body{font-family:var(--font);background:var(--paper);color:var(--ink);
     return res.text().then(function(t){
       try{ return t?JSON.parse(t):{}; }catch(e){ return {error:"Unexpected response."}; }
     });
+  }
+  function errText(e){
+    if (e == null) return "The draw couldn't be completed.";
+    if (typeof e === "string") return e;
+    if (typeof e === "object") return e.message || JSON.stringify(e);
+    return String(e);
   }
   function fatal(msg){
     $('main').style.display='none';
