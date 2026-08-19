@@ -160,8 +160,8 @@ body{font-family:var(--font);background:var(--paper);color:var(--ink);
      Same as every Operion portal page's PASTE_YOUR_FLOW_URL_HERE.
      ============================================================ */
   var CONFIG = {
-    FETCH_URL: "PASTE_FETCH_PARTICIPANTS_FLOW_URL_HERE",  // Flow 2 (GET ?token=)
-    DRAW_URL:  "PASTE_DRAW_WINNER_FLOW_URL_HERE"          // Flow 3 (POST {token})
+    FETCH_URL: "https://b2b6fd73de3fe8a39420ca82b47685.00.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/13/workflows/d1b3db7caff44c049fe56d285884b2b2/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=1mWlpGU3PI4s8pR1Z04sjjm6CwIIWP5FLfhOyQ0u2kw",  // Flow 2 (GET, token appended with &)
+    DRAW_URL:  "https://b2b6fd73de3fe8a39420ca82b47685.00.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/03/workflows/ed0b9249d6794df5bf6707d5a7de2329/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=soAfDQ8jYbm60AMBMrvwMqXosMEd6uf4Lf5ERozYxcA"          // Flow 3 (POST, text/plain to skip CORS preflight)
   };
 
   var SPIN_MS = 5000;   // 5-second animation
@@ -222,7 +222,8 @@ body{font-family:var(--font);background:var(--paper);color:var(--ink);
     var serverResult = null, serverError = null;
 
     fetch(CONFIG.DRAW_URL, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},  // text/plain = "simple request", skips CORS preflight
       body: JSON.stringify({ token:S.token })
     })
     .then(readJson)
