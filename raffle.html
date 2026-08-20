@@ -51,6 +51,35 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
 
 .wrap{max-width:1240px;margin:0 auto;padding:28px 20px 60px}
 .pagehead{margin-bottom:22px}
+
+/* prize banner (front-end only, not stored) */
+.banner{position:relative;border-radius:var(--r-lg);overflow:hidden;margin-bottom:20px;
+  background:linear-gradient(120deg,#EEF0FB,#F6F2FF);border:1px solid var(--line);
+  min-height:150px;display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-1)}
+.banner.has-img{min-height:200px}
+.banner img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.banner .veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,7,30,.05),rgba(7,7,30,.32));z-index:1;display:none}
+.banner.has-img .veil{display:block}
+.banner .drop{position:relative;z-index:2;text-align:center;padding:34px 20px;cursor:pointer;color:var(--ink-3);width:100%}
+.banner.has-img .drop{position:absolute;inset:0;opacity:0;transition:opacity .2s}
+.banner.has-img:hover .drop{opacity:1;background:rgba(7,7,30,.28)}
+.banner.has-img .drop{color:#fff;display:flex;align-items:center;justify-content:center}
+.banner .drop .di{width:30px;height:30px;margin:0 auto 8px;opacity:.7}
+.banner .drop strong{display:block;font-size:13.5px;font-weight:600;margin-bottom:2px}
+.banner .drop span{font-size:12px}
+.banner .logo-slot{position:absolute;top:14px;left:16px;z-index:3;display:flex;align-items:center;gap:9px}
+.banner .logo-slot img{height:38px;max-width:150px;object-fit:contain;background:rgba(255,255,255,.92);
+  border-radius:8px;padding:4px 8px;box-shadow:var(--sh-1)}
+.logo-btn{z-index:3;font-size:11.5px;font-weight:500;color:var(--ink-3);background:rgba(255,255,255,.92);
+  border:1px solid var(--line);border-radius:7px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.banner.has-img .logo-btn{color:var(--ink-3)}
+.banner .caption{position:relative;z-index:2;text-align:center;padding:0 20px}
+.banner.has-img .caption{position:absolute;bottom:16px;left:0;right:0;color:#fff}
+.banner .caption h3{font-size:19px;font-weight:700;letter-spacing:-0.02em;margin-bottom:3px}
+.banner .caption p{font-size:13px;opacity:.9}
+.banner .cap-edit{background:transparent;border:none;color:inherit;font:inherit;text-align:center;width:100%;outline:none}
+.banner .cap-edit:focus{background:rgba(255,255,255,.15);border-radius:6px}
+
 .crumb{font-size:12px;color:var(--ink-4);font-weight:500;margin-bottom:9px;display:flex;gap:7px;align-items:center}
 .crumb svg{width:12px;height:12px;opacity:.6}
 .pagehead h1{font-size:22px;font-weight:650;letter-spacing:-0.02em;line-height:1.2}
@@ -218,6 +247,27 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
     <div class="crumb">Campaigns<svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Draw</div>
     <h1 id="campTitle">Campaign</h1>
     <div class="meta"><span id="metaCount" class="tnum">— participants</span><span class="sep"></span><span id="metaStatus">Ready to draw</span></div>
+  </div>
+
+  <!-- prize banner: front-end only, not stored -->
+  <div class="banner" id="banner">
+    <img class="bg" id="bannerImg" alt="" style="display:none">
+    <div class="veil"></div>
+    <div class="logo-slot" id="logoSlot">
+      <img id="logoImg" alt="" style="display:none">
+      <button class="logo-btn" data-act="logo" id="logoBtn">＋ Add logo</button>
+    </div>
+    <div class="drop" data-act="banner">
+      <div class="di"><svg viewBox="0 0 24 24" fill="none"><path d="M4 16l5-5 4 4 3-3 4 4M4 5h16v14H4V5z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <strong>Add a prize banner</strong>
+      <span>Click to upload an image showing what participants can win</span>
+    </div>
+    <div class="caption" id="caption" style="display:none">
+      <h3><span class="cap-edit" id="capTitle" contenteditable="true">Grand Prize</span></h3>
+      <p><span class="cap-edit" id="capSub" contenteditable="true">Tap to edit — describe the prizes on offer</span></p>
+    </div>
+    <input type="file" id="bannerFile" accept="image/*" hidden>
+    <input type="file" id="logoFile" accept="image/*" hidden>
   </div>
 
   <div class="cols">
@@ -544,7 +594,36 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
     g.innerHTML='<div class="icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h3>'+esc(title)+'</h3><div class="msg">'+esc(detail)+'</div>';
   }
 
-  document.addEventListener('click',function(e){var t=e.target.closest('[data-act]');if(!t)return;if(t.dataset.act==='draw')draw(t);});
+  /* ---------- prize banner + logo (front-end only, never stored) ---------- */
+  function readImage(file, cb){
+    if(!file || !/^image\//.test(file.type)) return;
+    var r=new FileReader();
+    r.onload=function(e){ cb(e.target.result); };
+    r.readAsDataURL(file);
+  }
+  function setBanner(src){
+    $('bannerImg').src=src; $('bannerImg').style.display='block';
+    $('banner').classList.add('has-img');
+    $('caption').style.display='block';
+  }
+  function setLogo(src){
+    $('logoImg').src=src; $('logoImg').style.display='inline-block';
+    $('logoBtn').textContent='Change';
+  }
+  (function initUploads(){
+    $('bannerFile').addEventListener('change',function(e){ readImage(e.target.files[0], setBanner); });
+    $('logoFile').addEventListener('change',function(e){ readImage(e.target.files[0], setLogo); });
+    // drag & drop onto banner
+    var b=$('banner');
+    ['dragover','dragenter'].forEach(function(ev){ b.addEventListener(ev,function(e){e.preventDefault();}); });
+    b.addEventListener('drop',function(e){ e.preventDefault(); if(e.dataTransfer.files[0]) readImage(e.dataTransfer.files[0], setBanner); });
+  })();
+
+  document.addEventListener('click',function(e){var t=e.target.closest('[data-act]');if(!t)return;
+    if(t.dataset.act==='draw')draw(t);
+    else if(t.dataset.act==='banner')$('bannerFile').click();
+    else if(t.dataset.act==='logo'){e.stopPropagation();$('logoFile').click();}
+  });
   boot();
 })();
 </script>
