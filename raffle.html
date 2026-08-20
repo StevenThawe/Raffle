@@ -6,23 +6,24 @@
 <title>Raffle Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
-   RAFFLE CONSOLE
-   Enterprise-console aesthetic (Fluent / Linear / Stripe).
-   Reached by signed link ?token=<guid>
-   Flow 2 (fetch) -> render roster; Flow 3 (draw) -> server winner.
-   Names only (Malawi Gaming Board — no participant identifiers shown).
-   Multi-winner: numbered winners panel, locks only when remaining=0.
+   RAFFLE CONSOLE — countdown-to-grand-winner ceremony
+   Draw order maps to DESCENDING prize positions:
+     with N winners, 1st draw = Nth place ... last draw = 1st place.
+   Only the final pick (1st place) triggers the celebration.
+   Winners panel is a leaderboard: 1st at top, filling bottom-up.
+   Names only (Malawi Gaming Board — no identifiers shown).
    ============================================================ */
 :root{
   --bg:#F7F8FA; --surface:#FFFFFF; --surface-2:#FBFBFD;
   --ink:#0B0D12; --ink-2:#3A3F4B; --ink-3:#6B7280; --ink-4:#9AA0AB;
   --line:#E7E9EE; --line-2:#EEF0F4;
   --brand:#5B4CE0; --brand-ink:#4A3DC4; --brand-wash:#F1F0FD;
-  --gold:#B8860B; --gold-line:#E8D9A8; --gold-wash:#FBF7EC;
-  --green:#0E9F6E; --green-wash:#E8F6F0; --red:#D0322E; --red-wash:#FCECEB;
+  --gold:#B8860B; --gold-2:#D4A017; --gold-line:#E8D9A8; --gold-wash:#FBF7EC;
+  --silver:#8A93A6; --silver-wash:#F2F4F7; --bronze:#B07B4F; --bronze-wash:#F7EFE8;
+  --green:#0E9F6E; --red:#D0322E; --red-wash:#FCECEB;
   --sh-1:0 1px 1px rgba(11,13,18,.04),0 1px 2px rgba(11,13,18,.05);
   --sh-2:0 2px 4px rgba(11,13,18,.04),0 6px 16px rgba(11,13,18,.06);
   --sh-3:0 8px 24px rgba(11,13,18,.08),0 2px 6px rgba(11,13,18,.05);
@@ -32,7 +33,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
 body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;
-  letter-spacing:-0.006em;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;min-height:100vh}
+  letter-spacing:-0.006em;-webkit-font-smoothing:antialiased;min-height:100vh}
 .tnum{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 
 .appbar{height:52px;background:var(--surface);border-bottom:1px solid var(--line);
@@ -56,7 +57,7 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
 .pagehead .meta{margin-top:6px;font-size:13px;color:var(--ink-3);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .pagehead .meta .sep{width:3px;height:3px;border-radius:50%;background:var(--ink-4)}
 
-.cols{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr) minmax(0,280px);gap:18px;align-items:start}
+.cols{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr) minmax(0,300px);gap:18px;align-items:start}
 @media(max-width:1000px){.cols{grid-template-columns:1fr}}
 
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--sh-1)}
@@ -82,43 +83,61 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
 .row .tick svg{width:11px;height:11px;color:#fff}
 
 /* console */
-.console-body{padding:34px 30px 30px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.console-body{padding:34px 30px 30px;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;overflow:hidden}
 .statusline{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--ink-3);
-  border:1px solid var(--line);border-radius:99px;padding:4px 11px;margin-bottom:26px}
+  border:1px solid var(--line);border-radius:99px;padding:4px 11px;margin-bottom:22px}
 .statusline .dot{width:6px;height:6px;border-radius:50%;background:var(--brand)}
 .statusline.ready .dot{background:var(--green)}
 .statusline.done .dot{background:var(--gold)}
 .statusline.rolling .dot{background:var(--brand);animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
+/* place ribbon above the display */
+.place{font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+  padding:4px 12px;border-radius:99px;margin-bottom:14px;display:none;border:1px solid transparent}
+.place.show{display:inline-block}
+.place.runner{background:var(--surface-2);color:var(--ink-3);border-color:var(--line)}
+.place.grand{background:var(--gold-wash);color:var(--gold);border-color:var(--gold-line)}
+
 /* display */
 .display{width:100%;max-width:440px;border:1px solid var(--line);border-radius:var(--r-lg);
   background:linear-gradient(180deg,var(--surface),var(--surface-2));padding:38px 24px;margin-bottom:22px;
-  position:relative;overflow:hidden;box-shadow:var(--sh-1);transition:border-color .3s ease,box-shadow .4s ease}
+  position:relative;overflow:hidden;box-shadow:var(--sh-1);transition:border-color .35s ease,box-shadow .5s ease,transform .4s ease}
 .display .label{font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-4);
   margin-bottom:16px;transition:color .3s}
-.reelbox{height:44px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.countdown{position:absolute;font-size:40px;font-weight:700;letter-spacing:-0.03em;color:var(--brand);
+.reelbox{height:46px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.countdown{position:absolute;font-size:42px;font-weight:800;letter-spacing:-0.03em;color:var(--brand);
   font-variant-numeric:tabular-nums;display:none;line-height:1}
 .countdown.show{display:block;animation:cd .8s cubic-bezier(.2,.8,.3,1)}
 @keyframes cd{0%{transform:scale(1.5);opacity:0}25%{transform:scale(1);opacity:1}75%{opacity:1}100%{transform:scale(.7);opacity:0}}
-.display .name{font-size:30px;font-weight:650;letter-spacing:-0.025em;color:var(--ink);line-height:1.1;
-  transition:color .25s;will-change:transform,opacity}
+.display .name{font-size:30px;font-weight:650;letter-spacing:-0.025em;color:var(--ink);line-height:1.1;transition:color .25s}
 .display .name.rolling{color:var(--brand)}
+.name.roll-anim{animation:rollup .12s ease-out}
+@keyframes rollup{0%{transform:translateY(60%);opacity:0}100%{transform:translateY(0);opacity:1}}
+
+/* runner-up settle (quiet) */
 .display.settled{border-color:var(--gold-line);box-shadow:0 0 0 3px var(--gold-wash),var(--sh-2)}
 .display.settled .label{color:var(--gold)}
-.display.settled .name{color:var(--ink);animation:stamp .5s cubic-bezier(.2,1.3,.35,1)}
+.display.settled .name{animation:stamp .5s cubic-bezier(.2,1.3,.35,1)}
 @keyframes stamp{0%{transform:scale(1.14);opacity:.4}55%{transform:scale(.97)}100%{transform:scale(1)}}
+
+/* grand winner settle (loud) */
+.display.grand{border-color:var(--gold-2);
+  background:linear-gradient(180deg,#FFFDF5,#FFF7E4);
+  box-shadow:0 0 0 4px rgba(212,160,23,.22),0 18px 48px rgba(212,160,23,.28);transform:translateY(-2px)}
+.display.grand .label{color:var(--gold-2)}
+.display.grand .name{font-size:34px;font-weight:800;color:#5c4708;animation:grandpop .7s cubic-bezier(.2,1.4,.3,1)}
+@keyframes grandpop{0%{transform:scale(.6) rotate(-3deg);opacity:0}50%{transform:scale(1.12) rotate(1deg)}75%{transform:scale(.97)}100%{transform:scale(1) rotate(0)}}
 .display .seal{position:absolute;top:12px;right:14px;opacity:0;transform:scale(.8);
   transition:opacity .4s ease .1s,transform .5s cubic-bezier(.2,.9,.3,1) .1s}
-.display.settled .seal{opacity:1;transform:scale(1)}
+.display.settled .seal,.display.grand .seal{opacity:1;transform:scale(1)}
 .display .seal svg{width:18px;height:18px;color:var(--gold)}
-/* rolling name slide */
-.name.tick-in{animation:tickin .001s}
-@keyframes rollup{0%{transform:translateY(60%);opacity:0}100%{transform:translateY(0);opacity:1}}
-.name.roll-anim{animation:rollup .12s ease-out}
+.display.grand .seal svg{width:24px;height:24px;color:var(--gold-2)}
+/* crown badge for grand */
+.crown{position:absolute;top:-2px;left:50%;transform:translateX(-50%) translateY(-100%);
+  font-size:26px;opacity:0;transition:opacity .4s ease .2s,transform .5s cubic-bezier(.2,1.3,.3,1) .2s}
+.display.grand .crown{opacity:1;transform:translateX(-50%) translateY(-60%)}
 
-/* light sweep during roll */
 .display .sweep{position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,rgba(91,76,224,.06) 50%,transparent 60%);
   transform:translateX(-100%);opacity:0}
 .display.spinning .sweep{opacity:1;animation:sweep 1.1s linear infinite}
@@ -143,16 +162,31 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
 .notice.info{background:var(--gold-wash);border:1px solid var(--gold-line);color:#7a5c08}
 .notice.err{background:var(--red-wash);border:1px solid #F3C9C7;color:#9e2320}
 
-/* winners panel */
-.winners-list{padding:8px;min-height:80px}
+/* winners leaderboard */
+.winners-list{padding:8px;min-height:80px;display:flex;flex-direction:column}
 .wempty{padding:26px 16px;text-align:center;color:var(--ink-4);font-size:12.5px}
 .winner-item{display:flex;align-items:center;gap:11px;padding:10px;border-radius:9px;margin-bottom:4px;
-  background:var(--gold-wash);border:1px solid var(--gold-line);
-  animation:wIn .45s cubic-bezier(.2,.9,.3,1) backwards}
-@keyframes wIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
-.winner-item .ord{width:24px;height:24px;flex-shrink:0;border-radius:7px;background:var(--gold);color:#fff;
-  display:grid;place-items:center;font-size:12px;font-weight:700}
-.winner-item .wn{min-width:0;flex:1;font-size:13.5px;font-weight:600;color:#5c4708;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  border:1px solid var(--line);background:var(--surface-2);
+  animation:wIn .5s cubic-bezier(.2,.9,.3,1) backwards}
+@keyframes wIn{from{opacity:0;transform:translateY(-8px) scale(.97)}to{opacity:1;transform:none}}
+.winner-item .ord{width:26px;height:26px;flex-shrink:0;border-radius:7px;display:grid;place-items:center;
+  font-size:12px;font-weight:700;color:#fff;background:var(--ink-4)}
+.winner-item .wn{min-width:0;flex:1;font-size:13.5px;font-weight:600;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* medal tints */
+.winner-item.p1{background:var(--gold-wash);border-color:var(--gold-line);order:-3}
+.winner-item.p1 .ord{background:var(--gold-2)}
+.winner-item.p1 .wn{color:#5c4708;font-weight:700}
+.winner-item.p2{background:var(--silver-wash);border-color:#DDE1E9;order:-2}
+.winner-item.p2 .ord{background:var(--silver)}
+.winner-item.p3{background:var(--bronze-wash);border-color:#E6D2C0;order:-1}
+.winner-item.p3 .ord{background:var(--bronze)}
+.winner-item .medal{margin-left:auto;font-size:15px;display:none}
+.winner-item.p1 .medal,.winner-item.p2 .medal,.winner-item.p3 .medal{display:block}
+
+/* confetti */
+.confetti{position:absolute;top:-14px;width:9px;height:14px;opacity:.95;pointer-events:none;z-index:5;border-radius:1px;
+  animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(560px) rotate(600deg);opacity:0}}
 
 .gate{max-width:420px;margin:80px auto;text-align:center}
 .gate .spinner{width:22px;height:22px;margin:0 auto 16px;border:2px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite}
@@ -187,18 +221,18 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
   </div>
 
   <div class="cols">
-    <!-- roster -->
     <section class="panel">
       <div class="panel-head"><h2>Participants</h2><span class="badge tnum" id="rosterCount">0</span></div>
       <div class="roster" id="roster"></div>
     </section>
 
-    <!-- console -->
     <section class="panel">
       <div class="console-body">
         <span class="statusline ready" id="statusline"><span class="dot"></span><span id="statusText">Ready to draw</span></span>
+        <span class="place" id="place"></span>
         <div class="display" id="display">
           <span class="sweep"></span>
+          <span class="crown">👑</span>
           <span class="seal"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20l1.1-6.5L2.6 8.8l6.5-.9L12 2z" fill="currentColor"/></svg></span>
           <div class="label" id="displayLabel">Awaiting draw</div>
           <div class="reelbox">
@@ -224,9 +258,8 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
       </div>
     </section>
 
-    <!-- winners -->
     <section class="panel">
-      <div class="panel-head"><h2>Winners</h2><span class="badge tnum" id="winnersCount">0</span></div>
+      <div class="panel-head"><h2>Results</h2><span class="badge tnum" id="winnersCount">0</span></div>
       <div class="winners-list" id="winnersList"><div class="wempty" id="wempty">No winners drawn yet.</div></div>
     </section>
   </div>
@@ -240,13 +273,14 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
     DRAW_URL:  "https://b2b6fd73de3fe8a39420ca82b47685.00.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/03/workflows/ed0b9249d6794df5bf6707d5a7de2329/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=soAfDQ8jYbm60AMBMrvwMqXosMEd6uf4Lf5ERozYxcA"
   };
 
-  var ROLL_MS = 4200;           // total anticipation window (longer = more tension)
-  var S = { token:"", participants:[], drawn:false, remaining:null, winners:[] };
+  var ROLL_MS = 4000;
+  var S = { token:"", participants:[], drawn:false, remaining:null, total:null, winners:[] };
 
   var $=function(id){return document.getElementById(id);};
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function initials(n){n=(n||'').trim();if(!n)return '?';var p=n.split(/\s+/);return (p[0][0]+(p.length>1?p[p.length-1][0]:'')).toUpperCase();}
   function errText(e){if(e==null)return "The draw couldn't be completed.";if(typeof e==="string")return e;if(typeof e==="object")return e.message||JSON.stringify(e);return String(e);}
+  function ord(n){var s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
 
   S.token = new URLSearchParams(location.search).get('token')||"";
 
@@ -269,6 +303,11 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
     $('metaCount').textContent=n+(n===1?' participant':' participants');
     $('rosterCount').textContent=n;
 
+    // total winners intended (for position math)
+    if(typeof d.total!=='undefined' && d.total!==null) S.total=d.total;
+    else if(typeof d.remaining!=='undefined' && d.remaining!==null && d.winners)
+      S.total = d.winners.length + d.remaining;
+
     var host=$('roster');host.innerHTML='';
     S.participants.forEach(function(p){
       var row=document.createElement('div');
@@ -282,12 +321,19 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
     $('gate').style.display='none';
     $('app').style.display='block';
 
-    // Always render any winners already drawn (history persists on reload)
-    var prior = d.winners || [];
-    prior.forEach(function(w,i){ addWinner(w.name, w.id, i+1); markWon(w.id); });
-    if(prior.length){
-      var last = prior[prior.length-1];
-      if(last) settleTo(last.name);
+    // rebuild history (winners come in DRAW order; position = total - drawIndex)
+    var prior=d.winners||[];
+    if(prior.length && S.total){
+      prior.forEach(function(w,i){
+        var position=S.total-i;              // draw 0 -> Nth place, last -> 1st
+        S.winners.push({name:w.name,id:w.id,position:position});
+        addWinnerItem(w.name,position);
+        markWon(w.id);
+      });
+      // reflect the last-drawn on the display
+      var last=prior[prior.length-1];
+      var lastPos=S.total-(prior.length-1);
+      if(last) settleTo(last.name,lastPos,lastPos===1);
     }
 
     if(S.drawn){
@@ -300,120 +346,119 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
       setStatus('ready','No participants');
       $('displayName').textContent='—';
       $('metaStatus').textContent='No participants';
-    } else {
-      // mid-draw reload: some winners drawn, more to go
-      if(typeof d.remaining !== 'undefined' && d.remaining !== null){
-        S.remaining = d.remaining;
-        if(prior.length){
-          $('drawBtn').innerHTML='<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Draw next winner';
-          setStatus('ready','Ready for next draw');
-          $('remain').style.display='block';
-          $('remain').innerHTML='<b>'+S.remaining+'</b> '+(S.remaining===1?'winner remaining':'winners remaining');
-        }
-      }
+    } else if(prior.length){
+      S.remaining = d.remaining;
+      $('drawBtn').innerHTML=nextLabel();
+      setStatus('ready','Ready for next draw');
+      showRemain();
     }
   }
 
   function setStatus(kind,text){$('statusline').className='statusline '+kind;$('statusText').textContent=text;}
+  function nextLabel(){return '<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Draw next place';}
+  function showRemain(){
+    if(S.remaining===null)return;
+    $('remain').style.display='block';
+    $('remain').innerHTML='<b>'+S.remaining+'</b> '+(S.remaining===1?'place remaining':'places remaining');
+  }
 
-  /* ---------- the draw: countdown -> multi-phase anticipation ---------- */
+  /* ---------- the draw ---------- */
   function draw(btn){
     if(S.participants.length===0)return;
     $('errNotice').style.display='none';
     btn.disabled=true;
     btn.innerHTML='<span class="btn-spin"></span> Drawing…';
     setStatus('rolling','Get ready…');
+    $('place').className='place';
 
-    // fire the server call now; the countdown + reel cover the latency
     var result=null,error=null;
     fetch(CONFIG.DRAW_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({token:S.token})})
       .then(readJson)
       .then(function(d){
         if(d.error&&d.winnerName){result={name:d.winnerName,id:d.winnerId,locked:true};}
         else if(d.error){error=errText(d.error);}
-        else{result={name:d.winnerName,id:d.winnerId};if(typeof d.remaining!=='undefined')S.remaining=d.remaining;}
+        else{
+          result={name:d.winnerName,id:d.winnerId};
+          if(typeof d.remaining!=='undefined')S.remaining=d.remaining;
+          if(typeof d.total!=='undefined'&&d.total!==null)S.total=d.total;
+        }
       })
       .catch(function(){error="The draw service didn't respond. Please try again.";});
 
-    // countdown from the number of winners still to be drawn (inclusive of this one)
-    var display=$('display'), nameEl=$('displayName'), cd=$('countdown');
-    display.classList.remove('settled');
-    nameEl.style.display='none';
-    // how many picks remain, counting this draw. remaining is winners-left AFTER this draw,
-    // so this draw's ordinal-from-the-end is remaining+1. Fall back to 5 if unknown.
-    var from = (S.remaining!==null && typeof S.remaining!=='undefined') ? (S.remaining+1) : 5;
-    if(from<1) from=1; if(from>9) from=9;   // keep it a single tidy digit sequence
+    // this draw's position = remaining-after + 1. If unknown, we resolve it once server replies.
+    var knownPos = (S.remaining!==null) ? (S.remaining+1) : null;
 
+    var display=$('display'),nameEl=$('displayName'),cd=$('countdown');
+    display.classList.remove('settled','grand');
+    nameEl.style.display='none';
+
+    // countdown: from this pick's place number down to it landing.
+    // e.g. drawing for 5th place -> 5,4,3,2,1. For 1st place -> just "1".
+    var from = knownPos!==null ? knownPos : (S.total||5);
+    if(from<1)from=1; if(from>9)from=9;
     var count=from;
-    function countStep(){
-      cd.classList.remove('show'); void cd.offsetWidth;
-      cd.textContent=count;
-      cd.classList.add('show');
-      count--;
-      if(count>=1){ setTimeout(countStep, 850); }
-      else { setTimeout(startReel, 850); }
-    }
     cd.style.display='block';
-    countStep();
+    (function countStep(){
+      cd.classList.remove('show');void cd.offsetWidth;
+      cd.textContent=count;cd.classList.add('show');
+      count--;
+      if(count>=1)setTimeout(countStep,820);
+      else setTimeout(startReel,820);
+    })();
 
     function startReel(){
-      cd.classList.remove('show'); cd.style.display='none';
+      cd.classList.remove('show');cd.style.display='none';
       nameEl.style.display='block';
-      runReel(display, nameEl, result, error, btn, function(){ return result; }, function(){ return error; });
+      runReel(display,nameEl,btn,function(){return result;},function(){return error;});
     }
   }
 
-  /* the spinning reel + reveal (called after countdown) */
-  function runReel(display, nameEl, _r, _e, btn, getResult, getError){
+  function runReel(display,nameEl,btn,getResult,getError){
     var started=Date.now();
     display.classList.add('spinning');
     $('displayLabel').textContent='Selecting';
     nameEl.classList.add('rolling');
     setStatus('rolling','Selecting…');
     var names=S.participants.map(function(p){return p.name||'Unnamed';});
-
-    function tempo(t){
-      if(t<0.55) return 42;
-      if(t<0.85) return 42 + Math.pow((t-0.55)/0.30,2)*260;
-      return 300 + Math.pow((t-0.85)/0.15,2)*520;
-    }
+    function tempo(t){if(t<0.55)return 42;if(t<0.85)return 42+Math.pow((t-0.55)/0.30,2)*260;return 300+Math.pow((t-0.85)/0.15,2)*520;}
     function tick(){
       var t=(Date.now()-started)/ROLL_MS;
       nameEl.textContent=names[Math.floor(Math.random()*names.length)];
       nameEl.classList.remove('roll-anim');void nameEl.offsetWidth;nameEl.classList.add('roll-anim');
       flashCandidate();
-      if(t<1){ setTimeout(tick, tempo(t)); }
-      else{ hold(); }
+      if(t<1)setTimeout(tick,tempo(t));else hold();
     }
     function hold(){
       setStatus('rolling','Confirming…');
       display.classList.remove('spinning');
       var go=function(){
-        nameEl.classList.remove('rolling');
-        clearCandidates();
-        var error=getError(), result=getResult();
+        nameEl.classList.remove('rolling');clearCandidates();
+        var error=getError(),result=getResult();
         if(error){drawError(error,btn);return;}
         if(result){reveal(result);}
         else{var poll=setInterval(function(){
-          var r=getResult(), er=getError();
-          if(r){clearInterval(poll);reveal(r);}
-          else if(er){clearInterval(poll);drawError(er,btn);}
+          var r=getResult(),er=getError();
+          if(r){clearInterval(poll);reveal(r);}else if(er){clearInterval(poll);drawError(er,btn);}
         },120);}
       };
       var wait=Math.max(0,(ROLL_MS+450)-(Date.now()-started));
       setTimeout(go,wait);
     }
-    setTimeout(tick, 42);
+    setTimeout(tick,42);
   }
 
-
   function reveal(w){
-    settleTo(w.name);
-    markWon(w.id);
-    addWinner(w.name, w.id, S.winners.length+1);
-    var btn=$('drawBtn');
+    // position this pick earned = remaining-after + 1 (1 = grand winner)
+    var position = (S.remaining!==null) ? (S.remaining+1) : (S.total?S.total-S.winners.length:1);
+    var isGrand = (position===1);
 
-    if(w.locked || S.remaining===0){
+    S.winners.push({name:w.name,id:w.id,position:position});
+    settleTo(w.name,position,isGrand);
+    markWon(w.id);
+    addWinnerItem(w.name,position);
+
+    var btn=$('drawBtn');
+    if(isGrand || w.locked || S.remaining===0){
       btn.style.display='none';
       $('remain').style.display='none';
       $('lockNotice').style.display='flex';
@@ -421,67 +466,81 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
       $('metaStatus').textContent='Drawing closed';
     }else{
       btn.disabled=false;
-      btn.innerHTML='<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Draw next winner';
+      btn.innerHTML=nextLabel();
       setStatus('ready','Ready for next draw');
-      if(S.remaining!==null){
-        $('remain').style.display='block';
-        $('remain').innerHTML='<b>'+S.remaining+'</b> '+(S.remaining===1?'winner remaining':'winners remaining');
-      }
+      showRemain();
     }
   }
 
-  function settleTo(name){
-    var display=$('display');
-    $('displayLabel').textContent='Winner';
-    var nameEl=$('displayName');
-    nameEl.textContent=name||'Unnamed';
-    display.classList.remove('spinning');
-    display.classList.add('settled');
+  function settleTo(name,position,isGrand){
+    var display=$('display'),placeEl=$('place');
+    $('displayName').textContent=name||'Unnamed';
+    display.classList.remove('spinning','settled','grand');
+    if(isGrand){
+      $('displayLabel').textContent='Grand winner';
+      placeEl.className='place grand show';placeEl.textContent='1st place';
+      display.classList.add('grand');
+      celebrate();
+    }else{
+      $('displayLabel').textContent=ord(position)+' place';
+      placeEl.className='place runner show';placeEl.textContent=ord(position)+' place';
+      display.classList.add('settled');
+    }
   }
 
-  /* winners panel */
-  function addWinner(name,id,ord){
-    S.winners.push({name:name,id:id});
-    var w=$('wempty'); if(w) w.remove();
+  /* winners leaderboard — order via CSS flex order so 1st sits on top */
+  function addWinnerItem(name,position){
+    var w=$('wempty');if(w)w.remove();
     var el=document.createElement('div');
-    el.className='winner-item';
-    el.innerHTML='<span class="ord">'+ord+'</span><span class="wn">'+esc(name||'Unnamed')+'</span>';
+    el.className='winner-item'+(position<=3?(' p'+position):'');
+    el.style.order = position;   // lower place number = higher on the board
+    var medal = position===1?'🥇':position===2?'🥈':position===3?'🥉':'';
+    el.innerHTML='<span class="ord">'+position+'</span><span class="wn">'+esc(name||'Unnamed')+'</span>'+
+      (medal?'<span class="medal">'+medal+'</span>':'');
     $('winnersList').appendChild(el);
-    $('winnersCount').textContent=S.winners.length;
+    $('winnersCount').textContent=$('winnersList').querySelectorAll('.winner-item').length;
   }
 
   function markWon(id){
     var rows=$('roster').children;
     for(var i=0;i<rows.length;i++){
-      if(id&&rows[i].dataset.id===id){
-        rows[i].classList.remove('cand');
-        rows[i].classList.add('won');
-        rows[i].scrollIntoView({block:'nearest',behavior:'smooth'});
-      }
+      if(id&&rows[i].dataset.id===id){rows[i].classList.remove('cand');rows[i].classList.add('won');
+        rows[i].scrollIntoView({block:'nearest',behavior:'smooth'});}
     }
   }
   function flashCandidate(){
-    var rows=$('roster').children;if(!rows.length)return;
-    clearCandidates();
-    var tries=0,pick;
-    do{pick=rows[Math.floor(Math.random()*rows.length)];tries++;}while(pick.classList.contains('won')&&tries<8);
+    var rows=$('roster').children;if(!rows.length)return;clearCandidates();
+    var tries=0,pick;do{pick=rows[Math.floor(Math.random()*rows.length)];tries++;}while(pick.classList.contains('won')&&tries<8);
     if(!pick.classList.contains('won'))pick.classList.add('cand');
   }
   function clearCandidates(){var rows=$('roster').children;for(var i=0;i<rows.length;i++)rows[i].classList.remove('cand');}
 
+  function celebrate(){
+    var host=document.querySelector('.console-body');
+    var colors=['#D4A017','#B8860B','#F5C542','#5B4CE0','#AF82FA','#0E9F6E'];
+    for(var i=0;i<90;i++){
+      var c=document.createElement('div');c.className='confetti';
+      c.style.left=(Math.random()*100)+'%';
+      c.style.background=colors[i%colors.length];
+      c.style.animationDuration=(1.8+Math.random()*1.6)+'s';
+      c.style.animationDelay=(Math.random()*0.35)+'s';
+      c.style.width=(6+Math.random()*5)+'px';c.style.height=(10+Math.random()*8)+'px';
+      host.appendChild(c);
+      (function(el){setTimeout(function(){el.remove();},4000);})(c);
+    }
+  }
+
   function drawError(msg,btn){
     $('errText').textContent=msg;$('errNotice').style.display='flex';
-    $('display').classList.remove('spinning');
+    $('display').classList.remove('spinning');$('place').className='place';
     $('displayLabel').textContent='Awaiting draw';$('displayName').textContent='—';
     setStatus('ready','Ready to draw');
-    btn.disabled=false;
-    btn.innerHTML='<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Draw winner';
+    btn.disabled=false;btn.innerHTML='<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Draw winner';
   }
 
   function readJson(res){return res.text().then(function(t){try{return t?JSON.parse(t):{};}catch(e){return {error:"The service returned an unexpected response."};}});}
   function fail(title,detail){
-    $('app').style.display='none';
-    var g=$('gate');g.style.display='block';g.className='gate error';
+    $('app').style.display='none';var g=$('gate');g.style.display='block';g.className='gate error';
     g.innerHTML='<div class="icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 8v5M12 16h.01M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h3>'+esc(title)+'</h3><div class="msg">'+esc(detail)+'</div>';
   }
 
