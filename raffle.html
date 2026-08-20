@@ -98,6 +98,10 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
 .display .label{font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--ink-4);
   margin-bottom:16px;transition:color .3s}
 .reelbox{height:44px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.countdown{position:absolute;font-size:40px;font-weight:700;letter-spacing:-0.03em;color:var(--brand);
+  font-variant-numeric:tabular-nums;display:none;line-height:1}
+.countdown.show{display:block;animation:cd .8s cubic-bezier(.2,.8,.3,1)}
+@keyframes cd{0%{transform:scale(1.5);opacity:0}25%{transform:scale(1);opacity:1}75%{opacity:1}100%{transform:scale(.7);opacity:0}}
 .display .name{font-size:30px;font-weight:650;letter-spacing:-0.025em;color:var(--ink);line-height:1.1;
   transition:color .25s;will-change:transform,opacity}
 .display .name.rolling{color:var(--brand)}
@@ -197,7 +201,10 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
           <span class="sweep"></span>
           <span class="seal"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20l1.1-6.5L2.6 8.8l6.5-.9L12 2z" fill="currentColor"/></svg></span>
           <div class="label" id="displayLabel">Awaiting draw</div>
-          <div class="reelbox"><div class="name" id="displayName">—</div></div>
+          <div class="reelbox">
+            <div class="countdown" id="countdown"></div>
+            <div class="name" id="displayName">—</div>
+          </div>
         </div>
         <div class="controls">
           <button class="btn btn-primary" id="drawBtn" data-act="draw">
@@ -275,35 +282,50 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
     $('gate').style.display='none';
     $('app').style.display='block';
 
+    // Always render any winners already drawn (history persists on reload)
+    var prior = d.winners || [];
+    prior.forEach(function(w,i){ addWinner(w.name, w.id, i+1); markWon(w.id); });
+    if(prior.length){
+      var last = prior[prior.length-1];
+      if(last) settleTo(last.name);
+    }
+
     if(S.drawn){
       setStatus('done','Drawing closed');
       $('metaStatus').textContent='Drawing closed';
       $('drawBtn').style.display='none';
       $('lockNotice').style.display='flex';
-      (d.winners||[]).forEach(function(w,i){ addWinner(w.name, w.id, i+1); markWon(w.id); });
-      var last=(d.winners||[])[(d.winners||[]).length-1];
-      if(last){settleTo(last.name);}
     } else if(n===0){
       $('drawBtn').disabled=true;
       setStatus('ready','No participants');
       $('displayName').textContent='—';
       $('metaStatus').textContent='No participants';
+    } else {
+      // mid-draw reload: some winners drawn, more to go
+      if(typeof d.remaining !== 'undefined' && d.remaining !== null){
+        S.remaining = d.remaining;
+        if(prior.length){
+          $('drawBtn').innerHTML='<svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Draw next winner';
+          setStatus('ready','Ready for next draw');
+          $('remain').style.display='block';
+          $('remain').innerHTML='<b>'+S.remaining+'</b> '+(S.remaining===1?'winner remaining':'winners remaining');
+        }
+      }
     }
   }
 
   function setStatus(kind,text){$('statusline').className='statusline '+kind;$('statusText').textContent=text;}
 
-  /* ---------- the draw: multi-phase anticipation ---------- */
+  /* ---------- the draw: countdown -> multi-phase anticipation ---------- */
   function draw(btn){
     if(S.participants.length===0)return;
     $('errNotice').style.display='none';
     btn.disabled=true;
     btn.innerHTML='<span class="btn-spin"></span> Drawing…';
-    setStatus('rolling','Selecting…');
+    setStatus('rolling','Get ready…');
 
-    var started=Date.now();
+    // fire the server call now; the countdown + reel cover the latency
     var result=null,error=null;
-
     fetch(CONFIG.DRAW_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({token:S.token})})
       .then(readJson)
       .then(function(d){
@@ -313,24 +335,48 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
       })
       .catch(function(){error="The draw service didn't respond. Please try again.";});
 
-    var display=$('display'),nameEl=$('displayName');
+    // countdown from the number of winners still to be drawn (inclusive of this one)
+    var display=$('display'), nameEl=$('displayName'), cd=$('countdown');
     display.classList.remove('settled');
+    nameEl.style.display='none';
+    // how many picks remain, counting this draw. remaining is winners-left AFTER this draw,
+    // so this draw's ordinal-from-the-end is remaining+1. Fall back to 5 if unknown.
+    var from = (S.remaining!==null && typeof S.remaining!=='undefined') ? (S.remaining+1) : 5;
+    if(from<1) from=1; if(from>9) from=9;   // keep it a single tidy digit sequence
+
+    var count=from;
+    function countStep(){
+      cd.classList.remove('show'); void cd.offsetWidth;
+      cd.textContent=count;
+      cd.classList.add('show');
+      count--;
+      if(count>=1){ setTimeout(countStep, 850); }
+      else { setTimeout(startReel, 850); }
+    }
+    cd.style.display='block';
+    countStep();
+
+    function startReel(){
+      cd.classList.remove('show'); cd.style.display='none';
+      nameEl.style.display='block';
+      runReel(display, nameEl, result, error, btn, function(){ return result; }, function(){ return error; });
+    }
+  }
+
+  /* the spinning reel + reveal (called after countdown) */
+  function runReel(display, nameEl, _r, _e, btn, getResult, getError){
+    var started=Date.now();
     display.classList.add('spinning');
     $('displayLabel').textContent='Selecting';
     nameEl.classList.add('rolling');
+    setStatus('rolling','Selecting…');
     var names=S.participants.map(function(p){return p.name||'Unnamed';});
 
-    /* Phase-based tempo:
-       0–55%   fast blur (fixed short interval)  — high energy
-       55–85%  easing out (interval grows)        — the slowdown
-       85–100% final ticks, each landing harder   — suspense
-       then a brief hold before the settle        — the breath before reveal */
     function tempo(t){
       if(t<0.55) return 42;
-      if(t<0.85) return 42 + Math.pow((t-0.55)/0.30,2)*260;   // ramp 42 -> ~300
-      return 300 + Math.pow((t-0.85)/0.15,2)*520;             // ramp 300 -> ~820
+      if(t<0.85) return 42 + Math.pow((t-0.55)/0.30,2)*260;
+      return 300 + Math.pow((t-0.85)/0.15,2)*520;
     }
-
     function tick(){
       var t=(Date.now()-started)/ROLL_MS;
       nameEl.textContent=names[Math.floor(Math.random()*names.length)];
@@ -339,29 +385,27 @@ body{font-family:var(--fs);background:var(--bg);color:var(--ink);font-size:14px;
       if(t<1){ setTimeout(tick, tempo(t)); }
       else{ hold(); }
     }
-
     function hold(){
-      // suspense beat: freeze on a random name ~450ms before revealing truth
       setStatus('rolling','Confirming…');
       display.classList.remove('spinning');
-      setTimeout(function(){
-        var go=function(){
-          nameEl.classList.remove('rolling');
-          clearCandidates();
-          if(error){drawError(error,btn);return;}
-          if(result){reveal(result);}
-          else{var poll=setInterval(function(){
-            if(result){clearInterval(poll);reveal(result);}
-            else if(error){clearInterval(poll);drawError(error,btn);}
-          },120);}
-        };
-        var wait=Math.max(0,(ROLL_MS+450)-(Date.now()-started));
-        setTimeout(go,wait);
-      },0);
+      var go=function(){
+        nameEl.classList.remove('rolling');
+        clearCandidates();
+        var error=getError(), result=getResult();
+        if(error){drawError(error,btn);return;}
+        if(result){reveal(result);}
+        else{var poll=setInterval(function(){
+          var r=getResult(), er=getError();
+          if(r){clearInterval(poll);reveal(r);}
+          else if(er){clearInterval(poll);drawError(er,btn);}
+        },120);}
+      };
+      var wait=Math.max(0,(ROLL_MS+450)-(Date.now()-started));
+      setTimeout(go,wait);
     }
-
     setTimeout(tick, 42);
   }
+
 
   function reveal(w){
     settleTo(w.name);
